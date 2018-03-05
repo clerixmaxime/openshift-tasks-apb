@@ -1,0 +1,178 @@
+##############################################################################
+## Provision cicd
+## This role executes much of the needed functionality to provision an
+## application using an Ansible Playbook Bundle.  Included in the comments
+## below are some sample resources for getting started deploying an application
+## to OpenShift.
+##############################################################################
+- name: Login As Super User
+  command: "oc login -u {{ admin_user }} -p {{ admin_password }}"
+
+- name: get APB service account
+  shell: >
+     oc get sa -n "{{ namespace }}" | grep apb | sed 's/\|/ /' | awk '{print $1}'
+  register: apb_sa
+
+- name: Add Privileged Policy
+  shell: >
+     oc adm policy add-scc-to-user privileged -z "{{ apb_sa.stdout }}" -n "{{ namespace }}"
+
+- name: Add cluster role
+  shell: >
+     oc adm policy add-cluster-role-to-user cluster-admin system:serviceaccount:"{{namespace}}":"{{ apb_sa.stdout }}"
+
+- name: create build project
+  openshift_v1_project:
+    name: "{{ build_namespace }}"
+    state: present
+
+- name: create test project
+  openshift_v1_project:
+    name: "{{ test_namespace }}"
+    state: present
+
+- name: create prod project
+  openshift_v1_project:
+    name: "{{ prod_namespace }}"
+    state: present
+
+- name: deploy Jenkins
+  shell: >
+     oc new-app -n "{{ build_namespace }}" --template=jenkins-persistent --name=jenkins -p MEMORY_LIMIT=1Gi
+
+- name: create nexus volume claim
+  k8s_v1_persistent_volume_claim:
+    name: nexus-volume-1
+    namespace: '{{ build_namespace }}'
+    state: present
+    access_modes:
+      - ReadWriteOnce
+    resources_requests:
+      storage: 5Gi
+
+- name: create nexus service
+  k8s_v1_service:
+    name: nexus
+    namespace: '{{ build_namespace }}'
+    labels:
+      app: nexus
+      service: nexus
+    selector:
+      app: nexus
+      service: nexus
+    ports:
+      - name: 8081-tcp
+        port: 8081
+        target_port: 8081
+
+- name: create nexus deployment config
+  openshift_v1_deployment_config:
+    name: nexus
+    namespace: '{{ build_namespace }}'
+    labels:
+      app: nexus
+      service: nexus
+    replicas: 1
+    selector:
+      app: nexus
+      service: nexus
+    spec_template_metadata_labels:
+      app: nexus
+      service: nexus
+    containers:
+    - env:
+      image: docker.io/sonatype/nexus3:latest
+      name: nexus
+      ports:
+      - container_port: 8081
+        protocol: TCP
+      volumeMounts:
+        - mountPath: /nexus-data
+          name: nexus-volume-1
+    volumes:
+    - name: nexus-volume-1
+      persistent_volume_claim:
+        claim_name: nexus-volume-1
+      test: false
+      triggers:
+      - type: ConfigChange
+
+- name: create nexus route
+  openshift_v1_route:
+    name: nexus
+    namespace: '{{ build_namespace }}'
+    spec_port_target_port: 8081-tcp
+    labels:
+      app: nexus
+      service: nexus
+    to_name: nexus
+  register: nexus_route
+
+- debug:
+    var: nexus_route
+
+## TODO: verify nexus deployment
+- name: wait for nexus server to be ready
+  command: >
+    curl -u admin:admin123 -k http://"{{ nexus_route.route.spec.host }}"/service/metrics/ping
+  args:
+    warn: no
+  register: api_health
+  until: api_health.stdout == 'pong'
+  retries: 120
+  delay: 1
+  changed_when: false
+
+- name: Download setup_nexus3.sh
+  get_url:
+    url: https://raw.githubusercontent.com/wkulhanek/ocp_advanced_development_resources/master/nexus/setup_nexus3.sh
+    dest: /tmp/setup_nexus3.sh
+    mode: 0555
+
+- name: execute setup_nexus3.sh
+  script: /tmp/setup_nexus3.sh admin admin123 http://"{{ nexus_route.route.spec.host }}"
+
+## TODO: configure maven repository
+
+## todo: create objects in both test and prod project
+
+
+
+##############################################################################
+## A Kubernetes service serves as an internal load bme: Download foo.conf
+## set of replicated pods in order to proxy the connections it receives to them.
+## https://docs.openshift.org/latest/architecture/core_concepts/pods_and_services.html#services
+##############################################################################
+#- name: create cicd service
+#  k8s_v1_service:
+#    name: cicd
+#    namespace: '{{ namespace }}'
+#    labels:
+#      app: cicd
+#      service: cicd
+#    selector:
+#      app: cicd
+#      service: cicd
+#    ports:
+#      - name: web
+#        port: 80
+#        target_port: 8080
+
+
+##############################################################################
+## An OpenShift Origin route exposes a service at a host name, so that external
+## clients can reach it by name. Each route consists of a name, a service
+## selector, and an optional security configuration.
+## https://docs.openshift.org/latest/architecture/core_concepts/routes.html
+##############################################################################
+#- name: create cicd route
+#  openshift_v1_route:
+#    name: cicd
+#    namespace: '{{ namespace }}'
+#    labels:
+#      app: cicd
+#      service: cicd
+#    to_name: cicd
+#    spec_port_target_port: web
+
+

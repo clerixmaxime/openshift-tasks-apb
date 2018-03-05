@@ -1,0 +1,13 @@
+apiVersion: servicecatalog.k8s.io/v1beta1
+kind: ServiceInstance
+metadata:
+  name: cicd-apb
+spec:
+  clusterServiceClassExternalName: dh-cicd-apb
+  clusterServicePlanExternalName: (Plans->|default)
+  parameters:
+    admin_password: ansibleplaybookbundle
+    admin_user: ansibleplaybookbundle
+    app_name: ansibleplaybookbundle
+    namespace_1: ansibleplaybookbundle
+    namespace_2: ansibleplaybookbundle

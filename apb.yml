@@ -1,0 +1,47 @@
+version: 1.0
+name: cicd-apb
+description: This is a sample APB to deploy a CI/CD project
+bindable: False
+async: optional
+metadata:
+  displayName: CI/CD (APB)
+  longDescription: an APB to deploy a CI/CD environment
+plans:
+  - name: default
+    description: This default plan deploys cicd-apb
+    free: True
+    metadata:
+      displayName: Default
+      longDescription: Default plan, provides a CI/CD environment
+      cost: $0.00 
+    parameters:
+      - name: app_name
+        default: myapp
+        type: string
+        title: Application Name
+        required: true
+      - name: build_namespace
+        default: apb-tasks-build
+        type: string
+        title: Build project
+        required: true
+      - name: test_namespace
+        default: apb-tasks-test
+        type: string
+        title: APB Tasks test project
+        required: true
+      - name: prod_namespace
+        default: apb-tasks-prod
+        type: string
+        title: APB Tasks prod project
+        required: true
+      - name: admin_user
+        default: maxime
+        type: string
+        title: Second project
+        required: true
+      - name: admin_password
+        default: "!redhat123#"
+        type: string
+        title: Second project
+        required: true
