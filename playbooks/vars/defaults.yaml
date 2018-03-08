@@ -1,3 +1,4 @@
 build_namespace: apb-tasks-build
 test_namespace: apb-tasks-test
 prod_namespace: apb-tasks-prod
+git_repo: https://github.com/clerixmaxime/openshift-tasks

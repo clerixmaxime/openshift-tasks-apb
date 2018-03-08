@@ -15,11 +15,6 @@ plans:
       longDescription: Default plan, provides a CI/CD environment
       cost: $0.00 
     parameters:
-      - name: app_name
-        default: myapp
-        type: string
-        title: Application Name
-        required: true
       - name: build_namespace
         default: apb-tasks-build
         type: string
@@ -35,6 +30,11 @@ plans:
         type: string
         title: APB Tasks prod project
         required: true
+      - name: git_repo
+        default: https://github.com/clerixmaxime/openshift-tasks.git
+        type: string
+        title: Git repository of the application
+        required: false
       - name: admin_user
         default: maxime
         type: string
