@@ -130,7 +130,14 @@
 - name: Initialize Nexus - execute setup_nexus3.sh
   script: /tmp/setup_nexus3.sh admin admin123 http://"{{ nexus_route.route.spec.host }}"
 
-## TODO: configure maven repository
+- name: Initialize openshift-tasks repo - Download add-openshift-tasks-repo.sh
+  get_url:
+    url: https://raw.githubusercontent.com/clerixmaxime/openshift-tasks-apb/master/add-openshift-tasks-repo.sh
+    dest: /tmp/add-openshift-tasks-repo.sh
+    mode: 0555
+
+- name: Initialize openshift-tasks repo - add-openshift-tasks-repo.sh
+  script: /tmp/add-openshift-tasks-repo.sh admin admin123 http://"{{ nexus_route.route.spec.host }}"
 
 ## todo: create objects in both test and prod project
 - name: create IS openshift-tasks (build)
@@ -157,27 +164,33 @@
       build: openshift-tasks
       template: openshift-tasks
 
-- name: create BC openshift-tasks
-  openshift_v1_build_config:
-    name: openshift-tasks
-    labels: 
-      build: openshift-tasks
-      template: openshift-tasks
-    namespace: '{{ build_namespace }}'
-    spec_successful_builds_history_limit: 1
-    spec_failed_builds_history_limit: 1    
-    spec_output_to_kind: ImageStreamTag
-    spec_output_to_name: openshift-tasks:latest
-    spec_run_policy: Serial
-    spec_source_git_uri: '{{ git_repo }}'
-    spec_source_type: Git
-    spec_strategy_type: Source
-    spec_strategy_source_strategy_from_kind: ImageStreamTag
-    spec_strategy_source_strategy_from_name: jboss-eap70-openshift:latest
-    spec_strategy_source_strategy_from_namespace: openshift
-    triggers:
-    - type: ConfigChange
-    - type: ImageChange
+# - name: create BC openshift-tasks
+#   openshift_v1_build_config:
+#     name: openshift-tasks
+#     labels: 
+#       build: openshift-tasks
+#       template: openshift-tasks
+#     namespace: '{{ build_namespace }}'
+#     spec_successful_builds_history_limit: 1
+#     spec_failed_builds_history_limit: 1    
+#     spec_output_to_kind: ImageStreamTag
+#     spec_output_to_name: openshift-tasks:latest
+#     spec_run_policy: Serial
+#     spec_source_git_uri: '{{ git_repo }}'
+#     spec_source_type: Git
+#     spec_strategy_type: Source
+#     spec_strategy_source_strategy_from_kind: ImageStreamTag
+#     spec_strategy_source_strategy_from_name: jboss-eap70-openshift:latest
+#     spec_strategy_source_strategy_from_namespace: openshift
+#     triggers:
+#     - type: ConfigChange
+#     - type: ImageChange
+
+# TEMPORARY
+- name: get APB service account
+  shell: >
+     oc new-build jboss-eap70-openshift:1.7~"{{ git_repo }}" --name=openshift-tasks --to='openshift-tasks:latest' -n "{{ build_namespace }}"
+  register: apb_sa
 
 ## TEST
 - name: create openshift-tasks deployment config
@@ -392,9 +405,6 @@
     spec_run_policy: Serial
     spec_source_git_uri: '{{ git_repo }}'
     spec_source_type: Git
-    spec_strategy_source_strategy_from_kind: "ImageStreamTag"
-    spec_strategy_source_strategy_from_name: "jboss-eap70-openshift:latest"
-    spec_strategy_source_strategy_from_namespace: "openshift"
     spec_strategy_type: JenkinsPipeline
     spec_strategy_jenkins_pipeline_strategy_jenkinsfile_path: Jenkinsfile
     spec_strategy_jenkins_pipeline_strategy_env:    
