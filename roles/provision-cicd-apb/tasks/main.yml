@@ -1,13 +1,15 @@
 ##############################################################################
-## Provision cicd
+## Provision CI/CD APB
 ## This role executes much of the needed functionality to provision an
-## application using an Ansible Playbook Bundle.  Included in the comments
-## below are some sample resources for getting started deploying an application
-## to OpenShift.
+## application using an Ansible Playbook Bundle.
+## This APB aims to deploy a CI/CD environment for a JEE application
+## called openshift-tasks.
 ##############################################################################
-- name: Login As Super User
+
+- name: Login as a user
   command: "oc login -u {{ admin_user }} -p {{ admin_password }}"
 
+# Get privileged access with APB Service Account (not required as the end user is impersonated)
 - name: get APB service account
   shell: >
      oc get sa -n "{{ namespace }}" | grep apb | sed 's/\|/ /' | awk '{print $1}'
@@ -36,7 +38,7 @@
     name: "{{ prod_namespace }}"
     state: present
 
-### Deploy Jenkins
+### Deploy Jenkins (Could evolve)
 - name: deploy Jenkins
   shell: >
      oc new-app -n "{{ build_namespace }}" --template=jenkins-persistent --name=jenkins -p MEMORY_LIMIT=1Gi
@@ -45,7 +47,7 @@
 - name: create nexus volume claim
   k8s_v1_persistent_volume_claim:
     name: nexus-volume-1
-    namespace: '{{ build_namespace }}'
+    namespace: "{{ build_namespace }}"
     state: present
     access_modes:
       - ReadWriteOnce
@@ -55,7 +57,7 @@
 - name: create nexus service
   k8s_v1_service:
     name: nexus
-    namespace: '{{ build_namespace }}'
+    namespace: "{{ build_namespace }}"
     labels:
       app: nexus
       service: nexus
@@ -70,7 +72,7 @@
 - name: create nexus deployment config
   openshift_v1_deployment_config:
     name: nexus
-    namespace: '{{ build_namespace }}'
+    namespace: "{{ build_namespace }}"
     labels:
       app: nexus
       service: nexus
@@ -102,7 +104,7 @@
 - name: create nexus route
   openshift_v1_route:
     name: nexus
-    namespace: '{{ build_namespace }}'
+    namespace: "{{ build_namespace }}"
     spec_port_target_port: 8081-tcp
     labels:
       app: nexus
@@ -123,7 +125,7 @@
 
 - name: Initialize Nexus - Download setup_nexus3.sh
   get_url:
-    url: https://raw.githubusercontent.com/wkulhanek/ocp_advanced_development_resources/master/nexus/setup_nexus3.sh
+    url: https://raw.githubusercontent.com/clerixmaxime/openshift-tasks-apb/master/scripts/setup_nexus3.sh
     dest: /tmp/setup_nexus3.sh
     mode: 0555
 
@@ -132,14 +134,13 @@
 
 - name: Initialize openshift-tasks repo - Download add-openshift-tasks-repo.sh
   get_url:
-    url: https://raw.githubusercontent.com/clerixmaxime/openshift-tasks-apb/master/add-openshift-tasks-repo.sh
+    url: https://raw.githubusercontent.com/clerixmaxime/openshift-tasks-apb/master/scripts/add-openshift-tasks-repo.sh
     dest: /tmp/add-openshift-tasks-repo.sh
     mode: 0555
 
 - name: Initialize openshift-tasks repo - add-openshift-tasks-repo.sh
   script: /tmp/add-openshift-tasks-repo.sh admin admin123 http://"{{ nexus_route.route.spec.host }}"
 
-## todo: create objects in both test and prod project
 - name: create IS openshift-tasks (build)
   openshift_v1_image_stream:
     name: openshift-tasks
@@ -151,7 +152,7 @@
 - name: create IS openshift-tasks (test)
   openshift_v1_image_stream:
     name: openshift-tasks
-    namespace: '{{ test_namespace }}'
+    namespace: "{{ test_namespace }}"
     labels:
       build: openshift-tasks
       template: openshift-tasks
@@ -159,44 +160,48 @@
 - name: create IS openshift-tasks (prod)
   openshift_v1_image_stream:
     name: openshift-tasks
-    namespace: '{{ prod_namespace }}'
+    namespace: "{{ prod_namespace }}"
     labels:
       build: openshift-tasks
       template: openshift-tasks
 
-# - name: create BC openshift-tasks
-#   openshift_v1_build_config:
-#     name: openshift-tasks
-#     labels: 
-#       build: openshift-tasks
-#       template: openshift-tasks
-#     namespace: '{{ build_namespace }}'
-#     spec_successful_builds_history_limit: 1
-#     spec_failed_builds_history_limit: 1    
-#     spec_output_to_kind: ImageStreamTag
-#     spec_output_to_name: openshift-tasks:latest
-#     spec_run_policy: Serial
-#     spec_source_git_uri: '{{ git_repo }}'
-#     spec_source_type: Git
-#     spec_strategy_type: Source
-#     spec_strategy_source_strategy_from_kind: ImageStreamTag
-#     spec_strategy_source_strategy_from_name: jboss-eap70-openshift:latest
-#     spec_strategy_source_strategy_from_namespace: openshift
-#     triggers:
-#     - type: ConfigChange
-#     - type: ImageChange
+- name: create BC openshift-tasks
+  openshift_v1_build_config:
+    name: openshift-tasks
+    labels: 
+      build: openshift-tasks
+      template: openshift-tasks
+    namespace: "{{ build_namespace }}"
+    spec_successful_builds_history_limit: 1
+    spec_failed_builds_history_limit: 1    
+    spec_output_to_kind: ImageStreamTag
+    spec_output_to_name: openshift-tasks:latest
+    spec_run_policy: Serial
+    spec_source_git_uri: "{{ git_repo }}"
+    spec_source_type: Git 
+    spec_strategy_type: Source
+    spec:
+      strategy:
+        source_strategy:
+          _from:
+            kind: ImageStreamTag
+            name: jboss-eap70-openshift:latest
+            namespace: openshiftt
+    triggers:
+    - type: ConfigChange
+    - type: ImageChange
 
 # TEMPORARY
-- name: get APB service account
-  shell: >
-     oc new-build jboss-eap70-openshift:1.7~"{{ git_repo }}" --name=openshift-tasks --to='openshift-tasks:latest' -n "{{ build_namespace }}"
-  register: apb_sa
+#- name: get APB service account
+#  shell: >
+#     oc new-build jboss-eap70-openshift:1.7~"{{ git_repo }}" --name=openshift-tasks -n "{{ build_namespace }}" || true
+#  register: apb_sa
 
 ## TEST
 - name: create openshift-tasks deployment config
   openshift_v1_deployment_config:
     name: openshift-tasks
-    namespace: '{{ test_namespace }}'
+    namespace: "{{ test_namespace }}"
     labels:
       app: openshift-tasks
       template: openshift-tasks
@@ -215,17 +220,14 @@
       ports:
       - container_port: 8080
         protocol: TCP
-      volumeMounts:
-        - mountPath: /nexus-data
-          name: nexus-volume-1
       test: false
-      triggers:
-      - type: ConfigChange
-      - type: ImageChange
-      imageChangeParams:
-        containerNames:
+    spec_triggers:
+    - type: ConfigChange
+    - type: ImageChange
+      image_change_params:
+        container_names:
         - openshift-tasks
-        from:
+        _from:
           kind: ImageStreamTag
           name: openshift-tasks:ready-for-testing
           namespace: "{{ test_namespace }}"
@@ -248,7 +250,7 @@
 - name: create openshift-tasks route (test)
   openshift_v1_route:
     name: openshift-tasks
-    namespace: '{{ test_namespace }}'
+    namespace: "{{ test_namespace }}"
     spec_port_target_port: 8080-tcp
     labels:
       app: openshift-tasks
@@ -260,7 +262,7 @@
 - name: create openshift-tasks blue service (prod)
   k8s_v1_service:
     name: openshift-tasks-blue
-    namespace: '{{ prod_namespace }}'
+    namespace: "{{ prod_namespace }}"
     labels:
       app: openshift-tasks-blue
       color: blue
@@ -278,7 +280,7 @@
 - name: create openshift-tasks green service (prod)
   k8s_v1_service:
     name: openshift-tasks-green
-    namespace: '{{ prod_namespace }}'
+    namespace: "{{ prod_namespace }}"
     labels:
       app: openshift-tasks-green
       color: green
@@ -296,7 +298,7 @@
 - name: create openshift-tasks green service (prod)
   k8s_v1_service:
     name: openshift-tasks
-    namespace: '{{ prod_namespace }}'
+    namespace: "{{ prod_namespace }}"
     labels:
       app: openshift-tasks
       template: openshift-tasks
@@ -311,7 +313,7 @@
 - name: create openshift-tasks route (prod)
   openshift_v1_route:
     name: openshift-tasks
-    namespace: '{{ prod_namespace }}'
+    namespace: "{{ prod_namespace }}"
     spec_port_target_port: 8080-tcp
     labels:
       app: openshift-tasks
@@ -322,7 +324,7 @@
 - name: create openshift-tasks deployment config (blue)
   openshift_v1_deployment_config:
     name: openshift-tasks-blue
-    namespace: '{{ prod_namespace }}'
+    namespace: "{{ prod_namespace }}"
     labels:
       app: openshift-tasks-blue
       color: blue
@@ -347,18 +349,18 @@
     triggers:
     - type: ConfigChange
     - type: ImageChange
-    imageChangeParams:
-      containerNames:
-      - openshift-tasks-blue
-      from:
-        kind: ImageStreamTag
-        name: openshift-tasks:ready-for-prod
-        namespace: "{{ prod_namespace }}"
+      image_change_params:
+        container_names:
+        - openshift-tasks-blue
+        _from:
+          kind: ImageStreamTag
+          name: openshift-tasks:ready-for-prod
+          namespace: "{{ prod_namespace }}"
 
 - name: create openshift-tasks deployment config (green)
   openshift_v1_deployment_config:
     name: openshift-tasks-green
-    namespace: '{{ prod_namespace }}'
+    namespace: "{{ prod_namespace }}"
     labels:
       app: openshift-tasks-green
       color: green
@@ -383,13 +385,13 @@
     triggers:
     - type: ConfigChange
     - type: ImageChange
-    imageChangeParams:
-      containerNames:
-      - openshift-tasks-green
-      from:
-        kind: ImageStreamTag
-        name: openshift-tasks:ready-for-prod
-        namespace: "{{ prod_namespace }}"
+      image_change_params:
+        container_names:
+        - openshift-tasks-green
+        _from:
+          kind: ImageStreamTag
+          name: openshift-tasks:ready-for-prod
+          namespace: "{{ prod_namespace }}"
 
 ## Jenkins / Pipeline
 - name: create jenkins pipeline
@@ -397,13 +399,13 @@
     name: openshift-tasks-pipeline
     labels: 
       template: openshift-tasks
-    namespace: '{{ build_namespace }}'
+    namespace: "{{ build_namespace }}"
     spec_successful_builds_history_limit: 1
     spec_failed_builds_history_limit: 1
     spec_output_to_kind: ImageStreamTag
     spec_output_to_name: openshift-tasks:latest
     spec_run_policy: Serial
-    spec_source_git_uri: '{{ git_repo }}'
+    spec_source_git_uri: "{{ git_repo }}"
     spec_source_type: Git
     spec_strategy_type: JenkinsPipeline
     spec_strategy_jenkins_pipeline_strategy_jenkinsfile_path: Jenkinsfile
@@ -417,17 +419,17 @@
     - name: OPENSHIFT_DEPLOYMENT_CONFIG
       value: openshift-tasks
     - name: OPENSHIFT_BUILD_PROJECT
-      value: '{{ build_namespace }}'
+      value: "{{ build_namespace }}"
     - name: OPENSHIFT_TEST_ENVIRONMENT
-      value: '{{ test_namespace }}'
+      value: "{{ test_namespace }}"
     - name: OPENSHIFT_PROD_ENVIRONMENT
-      value: '{{ prod_namespace }}'
+      value: "{{ prod_namespace }}"
     - name: OPENSHIFT_TEST_URL
-      value: http://'{{ test_route.route.spec.host }}'
+      value: http://"{{ test_route.route.spec.host }}"
     - name: NEXUS_REPO_URL
-      value: "{{ nexus_route.route.spec.host }}"
+      value: http://"{{ nexus_route.route.spec.host }}"/repository/openshift-tasks
     - name: NEXUS_MIRROR_URL
-      value: "{{ nexus_route.route.spec.host }}"
+      value: http://"{{ nexus_route.route.spec.host }}"/repository/maven-all-public/
     - name: NEXUS_USER
       value: admin
     - name: NEXUS_PASSWORD
@@ -436,29 +438,27 @@
 - name: add admin role to jenkins serviceaccount (test)
   openshift_v1_role_binding:
     name: jenkins-is-admin
-    namespace: '{{ test_namespace }}'
+    namespace: "{{ test_namespace }}"
     labels:
       template: openshift-tasks
-    roleRef:
-      name: admin
+    role_ref_name: admin
     subjects:
     - kind: ServiceAccount
       name: jenkins
-      namespace: '{{ build_namespace }}'
-    userNames:
-    - system:serviceaccount:'{{ build_namespace }}':jenkins
+      namespace: "{{ build_namespace }}"
+    user_names:
+    - system:serviceaccount:"{{ build_namespace }}":jenkins
 
 - name: add admin role to jenkins serviceaccount (prod)
   openshift_v1_role_binding:
     name: jenkins-is-admin
-    namespace: '{{ prod_namespace }}'
+    namespace: "{{ prod_namespace }}"
     labels:
       template: openshift-tasks
-    roleRef:
-      name: admin
+    role_ref_name: admin
     subjects:
     - kind: ServiceAccount
       name: jenkins
-      namespace: '{{ build_namespace }}'
-    userNames:
-    - system:serviceaccount:'{{ build_namespace }}':jenkins
+      namespace: "{{ build_namespace }}"
+    user_names:
+    - system:serviceaccount:"{{ build_namespace }}":jenkins
