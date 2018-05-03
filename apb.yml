@@ -41,7 +41,6 @@ plans:
         title: Second project
         required: true
       - name: admin_password
-        default: "!redhat123#"
         type: string
         title: Second project
         required: true
