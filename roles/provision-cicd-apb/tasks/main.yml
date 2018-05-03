@@ -9,7 +9,6 @@
 - name: Login as a user
   command: "oc login -u {{ admin_user }} -p {{ admin_password }}"
 
-# Get privileged access with APB Service Account (not required as the end user is impersonated)
 - name: get APB service account
   shell: >
      oc get sa -n "{{ namespace }}" | grep apb | sed 's/\|/ /' | awk '{print $1}'
@@ -165,37 +164,36 @@
       build: openshift-tasks
       template: openshift-tasks
 
-- name: create BC openshift-tasks
-  openshift_v1_build_config:
-    name: openshift-tasks
-    labels: 
-      build: openshift-tasks
-      template: openshift-tasks
-    namespace: "{{ build_namespace }}"
-    spec_successful_builds_history_limit: 1
-    spec_failed_builds_history_limit: 1    
-    spec_output_to_kind: ImageStreamTag
-    spec_output_to_name: openshift-tasks:latest
-    spec_run_policy: Serial
-    spec_source_git_uri: "{{ git_repo }}"
-    spec_source_type: Git 
-    spec_strategy_type: Source
-    spec:
-      strategy:
-        source_strategy:
-          _from:
-            kind: ImageStreamTag
-            name: jboss-eap70-openshift:latest
-            namespace: openshiftt
-    triggers:
-    - type: ConfigChange
-    - type: ImageChange
+#- name: create BC openshift-tasks
+#  openshift_v1_build_config:
+#    name: openshift-tasks
+#    labels: 
+#      build: openshift-tasks
+#      template: openshift-tasks
+#    namespace: "{{ build_namespace }}"
+#    spec_successful_builds_history_limit: 1
+#    spec_failed_builds_history_limit: 1    
+#    spec_output_to_kind: ImageStreamTag
+#    spec_output_to_name: openshift-tasks:latest
+#    spec_run_policy: Serial
+#    spec_source_git_uri: "{{ git_repo }}"
+#    spec_source_type: Git 
+#    spec_strategy_type: Source
+#    spec:
+#      strategy:
+#        source_strategy:
+#          _from:
+#            kind: ImageStreamTag
+#            name: jboss-eap70-openshift:latest
+#            namespace: openshiftt
+#    triggers:
+#    - type: ConfigChange
+#    - type: ImageChange
 
-# TEMPORARY
-#- name: get APB service account
-#  shell: >
-#     oc new-build jboss-eap70-openshift:1.7~"{{ git_repo }}" --name=openshift-tasks -n "{{ build_namespace }}" || true
-#  register: apb_sa
+- name: get APB service account
+  shell: >
+     oc new-build jboss-eap70-openshift:1.7~"{{ git_repo }}" --name=openshift-tasks -n "{{ build_namespace }}" || true
+  register: apb_sa
 
 ## TEST
 - name: create openshift-tasks deployment config
