@@ -391,7 +391,6 @@
           name: openshift-tasks:ready-for-prod
           namespace: "{{ prod_namespace }}"
 
-## Jenkins / Pipeline
 - name: create jenkins pipeline
   openshift_v1_build_config:
     name: openshift-tasks-pipeline
@@ -423,40 +422,48 @@
     - name: OPENSHIFT_PROD_ENVIRONMENT
       value: "{{ prod_namespace }}"
     - name: OPENSHIFT_TEST_URL
-      value: http://"{{ test_route.route.spec.host }}"
+      value: "http://{{ test_route.route.spec.host }}"
     - name: NEXUS_REPO_URL
-      value: http://"{{ nexus_route.route.spec.host }}"/repository/openshift-tasks
+      value: "http://{{ nexus_route.route.spec.host }}/repository/openshift-tasks"
     - name: NEXUS_MIRROR_URL
-      value: http://"{{ nexus_route.route.spec.host }}"/repository/maven-all-public/
+      value: "http://{{ nexus_route.route.spec.host }}/repository/maven-all-public/"
     - name: NEXUS_USER
       value: admin
     - name: NEXUS_PASSWORD
       value: admin123
 
 - name: add admin role to jenkins serviceaccount (test)
-  openshift_v1_role_binding:
-    name: jenkins-is-admin
-    namespace: "{{ test_namespace }}"
-    labels:
-      template: openshift-tasks
-    role_ref_name: admin
-    subjects:
-    - kind: ServiceAccount
-      name: jenkins
-      namespace: "{{ build_namespace }}"
-    user_names:
-    - system:serviceaccount:"{{ build_namespace }}":jenkins
+  shell: >
+    oc adm policy add-role-to-user edit system:serviceaccount:"{{ build_namespace }}":jenkins -n "{{ test_namespace }}"
 
 - name: add admin role to jenkins serviceaccount (prod)
-  openshift_v1_role_binding:
-    name: jenkins-is-admin
-    namespace: "{{ prod_namespace }}"
-    labels:
-      template: openshift-tasks
-    role_ref_name: admin
-    subjects:
-    - kind: ServiceAccount
-      name: jenkins
-      namespace: "{{ build_namespace }}"
-    user_names:
-    - system:serviceaccount:"{{ build_namespace }}":jenkins
+  shell: >
+    oc adm policy add-role-to-user edit system:serviceaccount:"{{ build_namespace }}":jenkins -n "{{ prod_namespace }}"
+
+#- name: add admin role to jenkins serviceaccount (test)
+#  openshift_v1_role_binding:
+#    name: jenkins-is-admin
+#    namespace: "{{ test_namespace }}"
+#    labels:
+#      template: openshift-tasks
+#    role_ref_name: admin
+#    subjects:
+#    - kind: ServiceAccount
+#      name: jenkins
+#      namespace: "{{ build_namespace }}"
+#    user_names:
+#    - "system:serviceaccount:"{{ build_namespace }}":jenkins
+#
+#- name: add admin role to jenkins serviceaccount (prod)
+#  openshift_v1_role_binding:
+#    name: jenkins-is-admin
+#    namespace: "{{ prod_namespace }}"
+#    labels:
+#      template: openshift-tasks
+#    role_ref_name: admin
+#    subjects:
+#    - kind: ServiceAccount
+#      name: jenkins
+#      namespace: "{{ build_namespace }}"
+#    user_names:
+#    - system:serviceaccount:"{{ build_namespace }}":jenkins
