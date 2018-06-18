@@ -18,29 +18,35 @@ plans:
       - name: build_namespace
         default: apb-tasks-build
         type: string
+        display_group: Projects Setup
         title: Build project
         required: true
       - name: test_namespace
         default: apb-tasks-test
         type: string
+        display_group: Projects Setup
         title: APB Tasks test project
         required: true
       - name: prod_namespace
         default: apb-tasks-prod
         type: string
+        display_group: Projects Setup
         title: APB Tasks prod project
         required: true
       - name: git_repo
         default: https://github.com/clerixmaxime/openshift-tasks.git
         type: string
+        display_group: Git Repository
         title: Git repository of the application
         required: false
       - name: admin_user
-        default: maxime
         type: string
-        title: Second project
+        display_group: Administrative User
+        title: Admin User
         required: true
       - name: admin_password
         type: string
-        title: Second project
+        display_group: Administrative User
+        display_type: password
+        title: Admin Password
         required: true

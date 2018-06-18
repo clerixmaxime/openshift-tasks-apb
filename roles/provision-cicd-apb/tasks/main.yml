@@ -11,16 +11,16 @@
 
 - name: get APB service account
   shell: >
-     oc get sa -n "{{ namespace }}" | grep apb | sed 's/\|/ /' | awk '{print $1}'
+     oc get sa | grep apb | sed 's/\|/ /' | awk '{print $1}'
   register: apb_sa
 
 - name: Add Privileged Policy
   shell: >
-     oc adm policy add-scc-to-user privileged -z "{{ apb_sa.stdout }}" -n "{{ namespace }}"
+     oc adm policy add-scc-to-user privileged -z "{{ apb_sa.stdout }}"
 
 - name: Add cluster role
   shell: >
-     oc adm policy add-cluster-role-to-user cluster-admin system:serviceaccount:"{{namespace}}":"{{ apb_sa.stdout }}"
+     oc adm policy add-cluster-role-to-user cluster-admin -z "{{ apb_sa.stdout }}"
 
 - name: create build project
   openshift_v1_project:
@@ -433,7 +433,6 @@
       value: admin123
 
 - name: add admin role to jenkins serviceaccount (test)
-<<<<<<< Updated upstream
   shell: >
     oc adm policy add-role-to-user edit system:serviceaccount:"{{ build_namespace }}":jenkins -n "{{ test_namespace }}"
 
