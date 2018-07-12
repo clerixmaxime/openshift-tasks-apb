@@ -8,6 +8,6 @@ spec:
   parameters:
     admin_password: ansibleplaybookbundle
     admin_user: ansibleplaybookbundle
-    app_name: ansibleplaybookbundle
-    namespace_1: ansibleplaybookbundle
-    namespace_2: ansibleplaybookbundle
+    build_namespace: ansibleplaybookbundle
+    prod_namespace: ansibleplaybookbundle
+    test_namespace: ansibleplaybookbundle
